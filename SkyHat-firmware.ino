@@ -18,9 +18,47 @@
  * - далее байт(ы) - параметр(ы), если нужны
  * 
  * Команды:
+ * 
+ * с версии 1.8+
+ * - 'l'(3 байта): Light, свет. Параметр: byte - яркость (0 = выключено)
+ * - 'o'(3 байта): Open, открыть. Параметр 'l' (левую крышку), 'r' (правую крышку), 'b' (обе крышки), 'a' (авто)
+ * - 'c'(3 байта): Close, закрыть. Параметр 'l' (левую крышку), 'r' (правую крышку), 'b' (обе крышки), 'a' (авто)
+ * - 'a'(2 байта): Abort. Отмена движения
+ * - 'g'(2 байта): get, получить пакета текущих данных. Параметр игнорируется (но должен быть задан!)
+ *        - byte start = 0xEE
+ *        - byte, current: Текущий ток в ADU датчика
+ *        - byte, timeout: Текущий таймаут в секундах (через сколько секунд мотор вырубится с ошибкой)
+ *        - byte, moveLeftTo: Куда движется левая створка ('c', 'o' или 's')
+ *        - byte, moveRightTo: Куда движется правая створка ('c', 'o' или 's')
+ *        - byte, statusLeft: Статус левой крышки, см. ниже
+ *        - byte, statusRight: Статус правой крышки, см. ниже
+ *        - byte, light: Включена ли лампочка, её яркость (0-255)
+ *        - byte, speedLeft: скорость левой крышки
+ *        - byte, speedRight: скорость левой крышки
+ *        - byte stop = 0x00
+ *         * Для отладки та же информация представлена в виде текстовой строки
+ * - 'e'(2 байта): get EEEPROM, получить пакет параметров из EEPROM
+ *        - byte start = 0xEE
+ *        - byte, part: в авто-режиме (и кнопкой) какая крышка едет. Параметр: 'l' (левая, по-умолчанию), 'r' (правая), 'b' (обе по схеме ниже).
+ *        - byte, first: какая крышка едет первой при открытии (при закрытии наоборот). Параметр: 'l' (левая, по-умолчанию) или 'r' (правая).
+ *        - byte, timeoutLeft: задание таймаута движения левой крышки в секундах. Параметр: число секунд (3, например)
+ *        - byte, timeoutRight: задание таймаута движения правой крышки в секундах. Параметр: число секунд (3, например)
+ *        - byte, thresholdLeft: задание порога срабатывания датчика тока левой крышки. Параметр: число порога (25, например)
+ *        - byte, thresholdRight: задание порога срабатывания датчика тока правой крышки. Параметр: число порога (25, например)
+ *        - byte, maxSpeedLeft: задание максимальной скорости левого мотора в ШИМ 0..255. Параметр: число скорости (255, например)
+ *        - byte, maxSpeedRight: задание максимальной скорости правого мотора в ШИМ 0..255. Параметр: число скорости (255, например)
+ *        - byte, velocityLeft: ускорение (скорость разгона) левой крышки. Параметр: число ускорения (5, например)
+ *        - byte, velocityRight: ускорение (скорость разгона) правой крышки. Параметр: число ускорения (5, например)
+ *        - byte, reverseLeft: реверс левого мотора (1) или его нормальная работа (0)
+ *        - byte, reverseRight: реверс правого мотора (1) или его нормальная работа (0)
+ *        - byte stop = 0x00
+ *         * Для отладки та же информация представлена в виде текстовой строки
+ * - 's'(2+12=14 байт): set EEPROM, установить параметры в EEPROM (part, first, timeoutLeft, timeoutRight, thresholdLeft, thresholdRight, maxSpeedLeft, maxSpeedRight, velocityLeft, velocityRight, reverseLeft, reverseRight)
+ * 
+ * до v.1.8-
  * - 'l'(3 байта): Light, свет. Параметр: '1' / '0' - включить / выключить
- * - 'o'(3 байта): Open, открыть. Параметр @todo: 'l' (левую крышку), 'r' (правую крышку), 'a' (обе крышки)
- * - 'c'(3 байта): Close, закрыть. Параметр @todo: 'l' (левую крышку), 'r' (правую крышку), 'a' (обе крышки)
+ * - 'o'(3 байта): Open, открыть. Параметр 'l' (левую крышку), 'r' (правую крышку), 'a' (обе крышки)
+ * - 'c'(3 байта): Close, закрыть. Параметр 'l' (левую крышку), 'r' (правую крышку), 'a' (обе крышки)
  * - 'a'(2 байта): Abort. Отмена движения
  * - 'g'(2 байта): get, получить пакета текущих данных. Параметр игнорируется (но должен быть задан!)
  *        - byte start = 0xEE
@@ -62,23 +100,21 @@ byte statusRight = 'u';
 
 //////////////////////////////// НАСТРОЙКИ
 
-//#define DEBUG
+#define DEBUG
 //#define INIT_EEPROM
-//#define MOTOR_LEFT_REVERSE
-//#define MOTOR_RIGHT_REVERSE
 
 // ноги ардуины
-#define _MOTOR_LEFT_OPEN  9
-#define _MOTOR_LEFT_CLOSE 10
+#define MOTOR_LEFT_OPEN  9
+#define MOTOR_LEFT_CLOSE 10
 
-// если L298N с инвертором на входе
-//#define MOTOR_INVERSE
-
-#define _MOTOR_RIGHT_OPEN  5
-#define _MOTOR_RIGHT_CLOSE 6
+#define MOTOR_RIGHT_OPEN  6
+#define MOTOR_RIGHT_CLOSE 5
 
 #define LED_MOSFET 3
 
+// нога кнопки открыть / закрыть
+#define TRIGGER_BUTTON 2
+byte triggerButtonState = 1; // 1 = сначала не нажата
 
 // Выбор типа индикации завершения движения. Датчик тока ИЛИ концевики
 #define CURRENT_INA219    // i2c датчик тока INA219
@@ -93,12 +129,22 @@ byte statusRight = 'u';
 
 
 #include <avr/eeprom.h>
-#define EEPROM_FIRST      0
-#define EEPROM_TIMEOUT    1
-#define EEPROM_BRIGHTNESS 2
-#define EEPROM_THRESHOLD  3
-#define EEPROM_MAXSPEED   4
-#define EEPROM_VELOCITY   5
+
+#define EEPROM_PART            0
+#define EEPROM_FIRST           1
+#define EEPROM_TIMEOUT_LEFT    2
+#define EEPROM_TIMEOUT_RIGHT   3
+#define EEPROM_THRESHOLD_LEFT  4
+#define EEPROM_THRESHOLD_RIGHT 5
+#define EEPROM_MAXSPEED_LEFT   6
+#define EEPROM_MAXSPEED_RIGHT  7
+#define EEPROM_VELOCITY_LEFT   8
+#define EEPROM_VELOCITY_RIGHT  9
+#define EEPROM_REVERSE_LEFT    10
+#define EEPROM_REVERSE_RIGHT   11
+
+#define EEPROM_STATUS_LEFT     12
+#define EEPROM_STATUS_RIGHT    13
 
 
 #ifdef CURRENT_INA219
@@ -108,38 +154,52 @@ byte statusRight = 'u';
 #endif
 
 
-byte first;       // какая крышка едет первой при открытии (при закрытии наоборот), ['l', 'r']
-byte timeoutInit; // таймаут движения крышек, сек
-byte brightnessInit; // яркость EL Panel
-byte threshold;   // порог срабатывания датчика тока, uint8 ADU MAX471
-byte maxSpeed;    // максимальный ШИМ (скорость) моторов, uint8
-byte velocity;    // приращение (ускорение) ШИМ моторов, uint8
+byte part;             // в авто-режиме (и кнопкой) какая крышка едет ['l', 'r', 'b']
+byte first;            // какая крышка едет первой при открытии (при закрытии наоборот), ['l', 'r']
+byte timeoutInitLeft;  // таймаут движения левого мотора, сек
+byte timeoutInitRight; // таймаут движения правого мотора, сек
+byte thresholdLeft;    // порог срабатывания датчика тока при движении левого мотора, uint8 ADU датчика
+byte thresholdRight;   // порог срабатывания датчика тока при движении правого мотора, uint8 ADU датчика
+byte maxSpeedLeft;     // максимальный ШИМ (скорость) левого мотора, uint8
+byte maxSpeedRight;    // максимальный ШИМ (скорость) правого мотора, uint8
+byte velocityLeft;     // приращение (ускорение) ШИМ левого мотора, uint8
+byte velocityRight;    // приращение (ускорение) ШИМ правого мотора, uint8
+byte reverseLeft;      // реверс левого мотора, bool
+byte reverseRight;     // реверс правого мотора, bool
+
 
 byte moveLeftTo  = 's';    // 'o' - open, 'c' - close, 's' - stop, 'g' - gap (ждёт очереди на движение)
 byte moveRightTo = 's';    // 'o' - open, 'c' - close, 's' - stop, 'g' - gap (ждёт очереди на движение)
 byte speedLeft   = 0;  // текущая скорость левого мотора
 byte speedRight  = 0;  // текущая скорость правого мотора
 
-
-
-#ifdef MOTOR_LEFT_REVERSE
-  #define MOTOR_LEFT_OPEN  _MOTOR_LEFT_CLOSE
-  #define MOTOR_LEFT_CLOSE _MOTOR_LEFT_OPEN
-#else
-  #define MOTOR_LEFT_OPEN  _MOTOR_LEFT_OPEN
-  #define MOTOR_LEFT_CLOSE _MOTOR_LEFT_CLOSE
-#endif
-#ifdef MOTOR_RIGHT_REVERSE
-  #define MOTOR_RIGHT_OPEN  _MOTOR_RIGHT_CLOSE
-  #define MOTOR_RIGHT_CLOSE _MOTOR_RIGHT_OPEN
-#else
-  #define MOTOR_RIGHT_OPEN  _MOTOR_RIGHT_OPEN
-  #define MOTOR_RIGHT_CLOSE _MOTOR_RIGHT_CLOSE
-#endif
-
-
 byte commandStage = 0;
 char command = ' ';
+
+byte motor_left_open, motor_left_close;
+byte motor_right_open, motor_right_close;
+
+
+void reverseInit()
+{
+  if (reverseLeft == 0) {
+    motor_left_open = MOTOR_LEFT_OPEN;
+    motor_left_close = MOTOR_LEFT_CLOSE;
+  }
+  else {
+    motor_left_open = MOTOR_LEFT_CLOSE;
+    motor_left_close = MOTOR_LEFT_OPEN;
+  }
+
+  if (reverseRight == 0) {
+    motor_right_open = MOTOR_RIGHT_OPEN;
+    motor_right_close = MOTOR_RIGHT_CLOSE;
+  }
+  else {
+    motor_right_open = MOTOR_RIGHT_CLOSE;
+    motor_right_close = MOTOR_RIGHT_OPEN;
+  }
+}
 
 
 void setup() {
@@ -148,6 +208,10 @@ void setup() {
   pinMode(MOTOR_RIGHT_OPEN, OUTPUT);
   pinMode(MOTOR_RIGHT_CLOSE, OUTPUT);
   pinMode(LED_MOSFET, OUTPUT);
+
+  #ifdef TRIGGER_BUTTON
+    pinMode(TRIGGER_BUTTON, INPUT_PULLUP);
+  #endif
 
   Serial.begin(115200);
 
@@ -168,61 +232,116 @@ void setup() {
   #endif
 
   #ifdef INIT_EEPROM
-    eeprom_write_byte(EEPROM_FIRST, 'l');
-    eeprom_write_byte(EEPROM_TIMEOUT, 20);
-    eeprom_write_byte(EEPROM_BRIGHTNESS, 128);
-    eeprom_write_byte(EEPROM_THRESHOLD, 100);
-    eeprom_write_byte(EEPROM_MAXSPEED, 180);
-    eeprom_write_byte(EEPROM_VELOCITY, 10);
+    eeprom_write_byte(EEPROM_PART, 'r');
+    eeprom_write_byte(EEPROM_FIRST, 'r');
+    eeprom_write_byte(EEPROM_TIMEOUT_LEFT, 20);
+    eeprom_write_byte(EEPROM_TIMEOUT_RIGHT, 20);
+    eeprom_write_byte(EEPROM_THRESHOLD_LEFT, 150);
+    eeprom_write_byte(EEPROM_THRESHOLD_RIGHT, 150);
+    eeprom_write_byte(EEPROM_MAXSPEED_LEFT, 220);
+    eeprom_write_byte(EEPROM_MAXSPEED_RIGHT, 220);
+    eeprom_write_byte(EEPROM_VELOCITY_LEFT, 5);
+    eeprom_write_byte(EEPROM_VELOCITY_RIGHT, 5);
+    eeprom_write_byte(EEPROM_REVERSE_LEFT, 0);
+    eeprom_write_byte(EEPROM_REVERSE_RIGHT, 0);
+    eeprom_write_byte(EEPROM_STATUS_LEFT, 'u');
+    eeprom_write_byte(EEPROM_STATUS_RIGHT, 'u');
   #endif
+
+  part = eeprom_read_byte(EEPROM_PART);
+  if (part == 255) {
+    part = 'r';
+  }
 
   first = eeprom_read_byte(EEPROM_FIRST);
   if (first == 255) {
-    first = 'l';
+    first = 'r';
   }
+
+  timeoutInitLeft = eeprom_read_byte(EEPROM_TIMEOUT_LEFT);
+  if (timeoutInitLeft == 255) {
+    timeoutInitLeft = 20;
+  }
+
+  timeoutInitRight = eeprom_read_byte(EEPROM_TIMEOUT_RIGHT);
+  if (timeoutInitRight == 255) {
+    timeoutInitRight = 20;
+  }
+
+  thresholdLeft = eeprom_read_byte(EEPROM_THRESHOLD_LEFT);
+  if (thresholdLeft == 255) {
+    thresholdLeft = 150;
+  }
+
+  thresholdRight = eeprom_read_byte(EEPROM_THRESHOLD_RIGHT);
+  if (thresholdRight == 255) {
+    thresholdRight = 150;
+  }
+
+  maxSpeedLeft = eeprom_read_byte(EEPROM_MAXSPEED_LEFT);
+  maxSpeedRight = eeprom_read_byte(EEPROM_MAXSPEED_RIGHT);
+
+  velocityLeft = eeprom_read_byte(EEPROM_VELOCITY_LEFT);
+  if (velocityLeft == 255) {
+    velocityLeft = 10;
+  }
+
+  velocityRight = eeprom_read_byte(EEPROM_VELOCITY_RIGHT);
+  if (velocityRight == 255) {
+    velocityRight = 10;
+  }
+
+  reverseLeft = eeprom_read_byte(EEPROM_REVERSE_LEFT);
+  if (reverseLeft == 255) {
+    reverseLeft = 0;
+  }
+
+  reverseRight = eeprom_read_byte(EEPROM_REVERSE_RIGHT);
+  if (reverseRight == 255) {
+    reverseRight = 0;
+  }
+
+  reverseInit();
+
+  statusLeft = eeprom_read_byte(EEPROM_STATUS_LEFT);
+  if (statusLeft == 255) {
+    statusLeft = 'u';
+  }
+
+  statusRight = eeprom_read_byte(EEPROM_STATUS_RIGHT);
+  if (statusRight == 255) {
+    statusRight = 'u';
+  }
+
   #ifdef DEBUG
+    Serial.print("read eeprom part = ");
+    Serial.println((char) part);
     Serial.print("read eeprom first = ");
     Serial.println((char) first);
-  #endif
-
-  timeoutInit = eeprom_read_byte(EEPROM_TIMEOUT);
-  if (timeoutInit == 255) {
-    timeoutInit = 10;
-  }
-  #ifdef DEBUG
-    Serial.print("read eeprom timeout = ");
-    Serial.println(timeoutInit, DEC);
-  #endif
-
-  brightnessInit = eeprom_read_byte(EEPROM_BRIGHTNESS);
-
-  #ifdef DEBUG
-    Serial.print("read eeprom brightness = ");
-    Serial.println(brightnessInit, DEC);
-  #endif
-
-  threshold = eeprom_read_byte(EEPROM_THRESHOLD);
-  if (threshold == 255) {
-    threshold = 60;
-  }
-  #ifdef DEBUG
-    Serial.print("read eeprom threshold = ");
-    Serial.println(threshold, DEC);
-  #endif
-
-  maxSpeed = eeprom_read_byte(EEPROM_MAXSPEED);
-  #ifdef DEBUG
-    Serial.print("read eeprom maxSpeed = ");
-    Serial.println(maxSpeed, DEC);
-  #endif
-
-  velocity = eeprom_read_byte(EEPROM_VELOCITY);
-  if (velocity == 255) {
-    velocity = 10;
-  }
-  #ifdef DEBUG
-    Serial.print("read eeprom velocity = ");
-    Serial.println(velocity, DEC);
+    Serial.print("read eeprom timeout left = ");
+    Serial.println(timeoutInitLeft, DEC);
+    Serial.print("read eeprom timeout right = ");
+    Serial.println(timeoutInitRight, DEC);
+    Serial.print("read eeprom threshold left = ");
+    Serial.println(thresholdLeft, DEC);
+    Serial.print("read eeprom threshold right = ");
+    Serial.println(thresholdRight, DEC);
+    Serial.print("read eeprom maxSpeed left = ");
+    Serial.println(maxSpeedLeft, DEC);
+    Serial.print("read eeprom maxSpeed right = ");
+    Serial.println(maxSpeedRight, DEC);
+    Serial.print("read eeprom velocity left = ");
+    Serial.println(velocityLeft, DEC);
+    Serial.print("read eeprom velocity right = ");
+    Serial.println(velocityRight, DEC);
+    Serial.print("read eeprom reverse left = ");
+    Serial.println(reverseLeft, DEC);
+    Serial.print("read eeprom reverse right = ");
+    Serial.println(reverseRight, DEC);
+    Serial.print("read eeprom status left = ");
+    Serial.println(statusLeft);
+    Serial.print("read eeprom status right = ");
+    Serial.println(statusRight);
   #endif
 
   // ушёл от прерывайний таймера, т.к. они схавали ноги 9 и 10. Надо менять схему на 3 и 11 (timer2)
@@ -280,6 +399,37 @@ ISR(TIMER1_OVF_vect)
 }
 */
 
+void startMoveAuto(byte dir)
+{
+  switch (part) {
+    case 'l':
+      moveLeftTo  = dir;
+      moveRightTo = 's';
+      timeout = timeoutInitLeft * TIMEOUT_SCALER;
+      break;
+
+    case 'r':
+      moveLeftTo  = 's';
+      moveRightTo = dir;
+      timeout = timeoutInitRight * TIMEOUT_SCALER;
+      break;
+
+    case 'b':
+      if (first == 'l') { // начнём двигать с левой
+        moveLeftTo  = dir;
+        moveRightTo = 'g';
+        timeout = timeoutInitLeft * TIMEOUT_SCALER;
+      }
+      else {
+        moveLeftTo  = 'g';
+        moveRightTo = dir;
+        timeout = timeoutInitRight * TIMEOUT_SCALER;
+      }
+      break;
+  }
+}
+
+
 void loop() {
 
   int current;
@@ -304,6 +454,76 @@ void loop() {
 
   #endif
 
+
+  // триггер-кнопка срабатывает по отпусканию
+  #ifdef TRIGGER_BUTTON
+  if (digitalRead(TRIGGER_BUTTON) == 0) {
+    // нажата
+    triggerButtonState = 0;
+  }
+
+  if ( (digitalRead(TRIGGER_BUTTON) == 1) && (triggerButtonState == 0) ) {
+    // отжата
+    triggerButtonState = 1;
+
+    // если куда-то бежал и нажата кнопка, остановить
+    if ((moveLeftTo == 'o') || (moveLeftTo == 'c') || (moveRightTo == 'o') || (moveRightTo == 'c')) {
+      digitalWrite(motor_left_open, 0);
+      digitalWrite(motor_left_close, 0);
+      digitalWrite(motor_right_open, 0);
+      digitalWrite(motor_right_close, 0);
+  
+      #ifdef DEBUG
+        Serial.println("stop move by trigger button");
+      #endif
+      
+      statusLeft = 'u';
+      statusRight = 'u';
+      eeprom_write_byte(EEPROM_STATUS_LEFT, statusLeft);
+      eeprom_write_byte(EEPROM_STATUS_RIGHT, statusRight);
+      
+      speedLeft  = 0;
+      speedRight = 0;
+
+      moveLeftTo  = 's';
+      moveRightTo = 's';
+    }
+    else {
+      // если стоял и нажата кнопка - ехать!
+      // но куда? Если что не ясно, то закрывать!
+      byte dir = 'c';
+
+      // кроме как, если ясно, что закрыто. Тогда открывать!
+      switch (part) {
+        case 'l':
+          if (statusLeft == 'c') {
+            dir = 'o';
+          }
+          break;
+
+        case 'r':
+          if (statusRight == 'c') {
+            dir = 'o';
+          }
+          break;
+
+        case 'b':
+          if ((statusLeft == 'c') && (statusRight == 'c')) {
+            dir = 'o';
+          }
+          break;
+      }
+
+      #ifdef DEBUG
+        Serial.print("start move by trigger button: ");
+        Serial.println(dir);
+      #endif
+
+      startMoveAuto(dir);
+    }
+  }
+  #endif
+
   // концевики
   #ifdef ENDSTOP_LEFT_OPEN
     current = 0;
@@ -316,7 +536,7 @@ void loop() {
         #endif
         
         if (digitalRead(ENDSTOP_LEFT_OPEN) == 0) {
-          current = threshold + 1;
+          current = thresholdLeft + 1;
         }
         break;
         
@@ -327,7 +547,7 @@ void loop() {
         #endif
         
         if (digitalRead(ENDSTOP_LEFT_CLOSE) == 0) {
-          current = threshold + 1;
+          current = thresholdLeft + 1;
         }
         break;
     }
@@ -340,7 +560,7 @@ void loop() {
         #endif
         
         if (digitalRead(ENDSTOP_RIGHT_OPEN) == 0) {
-          current = threshold + 1;
+          current = thresholdRight + 1;
         }
         break;
         
@@ -351,7 +571,7 @@ void loop() {
         #endif
         
         if (digitalRead(ENDSTOP_RIGHT_CLOSE) == 0) {
-          current = threshold + 1;
+          current = thresholdRight + 1;
         }
         break;
     }
@@ -359,75 +579,55 @@ void loop() {
 
   ////////////////////// ДВИЖЕНИЕ ЛЕВОГО МОТОРА ////////////////
   if ( (moveLeftTo == 'o') || (moveLeftTo == 'c') ) {
-    if (speedLeft < maxSpeed) {
-      if ((speedLeft + velocity) >= maxSpeed) {
-        speedLeft = maxSpeed;
+    if (speedLeft < maxSpeedLeft) {
+      if ((speedLeft + velocityLeft) >= maxSpeedLeft) {
+        speedLeft = maxSpeedLeft;
       }
       else {
-        speedLeft += velocity;
+        speedLeft += velocityLeft;
       }
     }
   }
   
   switch (moveLeftTo) {
     case 's':
-      #ifdef MOTOR_INVERSE
-        digitalWrite(MOTOR_LEFT_OPEN, 1);
-        digitalWrite(MOTOR_LEFT_CLOSE, 1);
-      #else
-        digitalWrite(MOTOR_LEFT_OPEN, 0);
-        digitalWrite(MOTOR_LEFT_CLOSE, 0);
-      #endif
+      digitalWrite(motor_left_open, 0);
+      digitalWrite(motor_left_close, 0);
       break;
 
     case 'c':
-      #ifdef MOTOR_INVERSE
-        digitalWrite(MOTOR_LEFT_OPEN, 1);
-        analogWrite(MOTOR_LEFT_CLOSE, 255 - speedLeft);
-      #else
-        digitalWrite(MOTOR_LEFT_OPEN, 0);
-        analogWrite(MOTOR_LEFT_CLOSE, speedLeft);
-      #endif
-      
+      digitalWrite(motor_left_open, 0);
+      analogWrite(motor_left_close, speedLeft);
       break;
 
     case 'o':
-      #ifdef MOTOR_INVERSE
-        analogWrite(MOTOR_LEFT_OPEN, 255 - speedLeft);
-        digitalWrite(MOTOR_LEFT_CLOSE, 1);
-      #else
-        analogWrite(MOTOR_LEFT_OPEN, speedLeft);
-        digitalWrite(MOTOR_LEFT_CLOSE, 0);
-      #endif
-
+      analogWrite(motor_left_open, speedLeft);
+      digitalWrite(motor_left_close, 0);
       break;
   }
 
 
   ////////////// ОСТАНОВ ЛЕВОГО МОТОРА ////////////
-  if (((moveLeftTo == 'o') || (moveLeftTo == 'c')) && (current > threshold)) {
-    #ifdef MOTOR_INVERSE
-      digitalWrite(MOTOR_LEFT_OPEN, 1);
-      digitalWrite(MOTOR_LEFT_CLOSE, 1);
-    #else
-      digitalWrite(MOTOR_LEFT_OPEN, 0);
-      digitalWrite(MOTOR_LEFT_CLOSE, 0);
-    #endif
+  if (((moveLeftTo == 'o') || (moveLeftTo == 'c')) && (current > thresholdLeft)) {
+    digitalWrite(motor_left_open, 0);
+    digitalWrite(motor_left_close, 0);
 
     #ifdef DEBUG
       Serial.print("stop left by threshold. Current=");
       Serial.print(current);
       Serial.print(", threshold=");
-      Serial.println(threshold);
+      Serial.println(thresholdLeft);
     #endif
     
     statusLeft = moveLeftTo;
+    eeprom_write_byte(EEPROM_STATUS_LEFT, statusLeft);
+    
     speedLeft  = 0;
     moveLeftTo = 's';
 
     if (moveRightTo == 'g') { // если было отложено движение правого мотора, запустить его
       moveRightTo = statusLeft;
-      timeout = timeoutInit * TIMEOUT_SCALER;
+      timeout = timeoutInitRight * TIMEOUT_SCALER;
 
       #ifdef DEBUG
         Serial.println("start right after GAP");
@@ -442,75 +642,55 @@ void loop() {
   
   ////////////////////// ДВИЖЕНИЕ ПРАВОГО МОТОРА ////////////////
   if ( (moveRightTo == 'o') || (moveRightTo == 'c') ) {
-    if (speedRight < maxSpeed) {
-      if ((speedRight + velocity) >= maxSpeed) {
-        speedRight = maxSpeed;
+    if (speedRight < maxSpeedRight) {
+      if ((speedRight + velocityRight) >= maxSpeedRight) {
+        speedRight = maxSpeedRight;
       }
       else {
-        speedRight += velocity;
+        speedRight += velocityRight;
       }
     }
   }
 
   switch (moveRightTo) {
     case 's':
-      #ifdef MOTOR_INVERSE
-        digitalWrite(MOTOR_RIGHT_OPEN, 1);
-        digitalWrite(MOTOR_RIGHT_CLOSE, 1);
-      #else
-        digitalWrite(MOTOR_RIGHT_OPEN, 0);
-        digitalWrite(MOTOR_RIGHT_CLOSE, 0);
-      #endif
+      digitalWrite(motor_right_open, 0);
+      digitalWrite(motor_right_close, 0);
       break;
 
     case 'c':
-      #ifdef MOTOR_INVERSE
-        digitalWrite(MOTOR_RIGHT_OPEN, 1);
-        analogWrite(MOTOR_RIGHT_CLOSE, 255 - speedRight);
-      #else
-        digitalWrite(MOTOR_RIGHT_OPEN, 0);
-        analogWrite(MOTOR_RIGHT_CLOSE, speedRight);
-      #endif
-      
+      digitalWrite(motor_right_open, 0);
+      analogWrite(motor_right_close, speedRight);
       break;
 
     case 'o':
-      #ifdef MOTOR_INVERSE
-        analogWrite(MOTOR_RIGHT_OPEN, 255 - speedRight);
-        digitalWrite(MOTOR_RIGHT_CLOSE, 1);
-      #else
-        analogWrite(MOTOR_RIGHT_OPEN, speedRight);
-        digitalWrite(MOTOR_RIGHT_CLOSE, 0);
-      #endif
-
+      analogWrite(motor_right_open, speedRight);
+      digitalWrite(motor_right_close, 0);
       break;
   }
 
 
   ////////////// ОСТАНОВ ПРАВОГО МОТОРА ////////////
-  if (((moveRightTo == 'o') || (moveRightTo == 'c')) && (current > threshold)) {
-    #ifdef MOTOR_INVERSE
-      digitalWrite(MOTOR_RIGHT_OPEN, 1);
-      digitalWrite(MOTOR_RIGHT_CLOSE, 1);
-    #else
-      digitalWrite(MOTOR_RIGHT_OPEN, 0);
-      digitalWrite(MOTOR_RIGHT_CLOSE, 0);
-    #endif
+  if (((moveRightTo == 'o') || (moveRightTo == 'c')) && (current > thresholdRight)) {
+    digitalWrite(motor_right_open, 0);
+    digitalWrite(motor_right_close, 0);
 
     #ifdef DEBUG
       Serial.print("stop right by threshold. Current=");
       Serial.print(current);
       Serial.print(", threshold=");
-      Serial.println(threshold);
+      Serial.println(thresholdRight);
     #endif
     
     statusRight = moveRightTo;
+    eeprom_write_byte(EEPROM_STATUS_RIGHT, statusRight);
+
     speedRight  = 0;
     moveRightTo = 's';
 
     if (moveLeftTo == 'g') { // если было отложено движение левого мотора, запустить его
       moveLeftTo = statusRight;
-      timeout = timeoutInit * TIMEOUT_SCALER;
+      timeout = timeoutInitLeft * TIMEOUT_SCALER;
 
       #ifdef DEBUG
         Serial.println("start left after GAP");
@@ -580,27 +760,45 @@ void loop() {
 
           case 'e':
             #ifdef DEBUG
-              Serial.print("first=");
+              Serial.print("part=");
+              Serial.print((char)part);
+              Serial.print(",first=");
               Serial.print((char)first);
-              Serial.print(",timeout=");
-              Serial.print(timeoutInit, DEC);
-              Serial.print(",brightness=");
-              Serial.print(brightnessInit, DEC);
-              Serial.print(",threshold=");
-              Serial.print(threshold, DEC);
-              Serial.print(",maxSpeed=");
-              Serial.print(maxSpeed, DEC);
-              Serial.print(",velocity=");
-              Serial.print(velocity, DEC);
+              Serial.print(",timeoutLeft=");
+              Serial.print(timeoutInitLeft, DEC);
+              Serial.print(",timeoutRight=");
+              Serial.print(timeoutInitRight, DEC);
+              Serial.print(",thresholdLeft=");
+              Serial.print(thresholdLeft, DEC);
+              Serial.print(",thresholdRight=");
+              Serial.print(thresholdRight, DEC);
+              Serial.print(",maxSpeedLeft=");
+              Serial.print(maxSpeedLeft, DEC);
+              Serial.print(",maxSpeedRight=");
+              Serial.print(maxSpeedRight, DEC);
+              Serial.print(",velocityLeft=");
+              Serial.print(velocityLeft, DEC);
+              Serial.print(",velocityRight=");
+              Serial.print(velocityRight, DEC);
+              Serial.print(",reverseLeft=");
+              Serial.print(reverseLeft, DEC);
+              Serial.print(",reverseRight=");
+              Serial.print(reverseRight, DEC);
               Serial.println();
             #else
               Serial.write(0xee);
+              Serial.write(part);
               Serial.write(first);
-              Serial.write(timeoutInit);
-              Serial.write(brightnessInit);
-              Serial.write(threshold);
-              Serial.write(maxSpeed);
-              Serial.write(velocity);
+              Serial.write(timeoutInitLeft);
+              Serial.write(timeoutInitRight);
+              Serial.write(thresholdLeft);
+              Serial.write(thresholdRight);
+              Serial.write(maxSpeedLeft);
+              Serial.write(maxSpeedRight);
+              Serial.write(velocityLeft);
+              Serial.write(velocityRight);
+              Serial.write(reverseLeft);
+              Serial.write(reverseRight);
               Serial.write(0);
             #endif            
 
@@ -608,17 +806,10 @@ void loop() {
             break;
 
           case 'a':
-            #ifdef MOTOR_INVERSE
-              digitalWrite(MOTOR_LEFT_OPEN, 1);
-              digitalWrite(MOTOR_LEFT_CLOSE, 1);
-              digitalWrite(MOTOR_RIGHT_OPEN, 1);
-              digitalWrite(MOTOR_RIGHT_CLOSE, 1);
-            #else
-              digitalWrite(MOTOR_LEFT_OPEN, 0);
-              digitalWrite(MOTOR_LEFT_CLOSE, 0);
-              digitalWrite(MOTOR_RIGHT_OPEN, 0);
-              digitalWrite(MOTOR_RIGHT_CLOSE, 0);
-            #endif
+            digitalWrite(motor_left_open, 0);
+            digitalWrite(motor_left_close, 0);
+            digitalWrite(motor_right_open, 0);
+            digitalWrite(motor_right_close, 0);
             
             moveLeftTo  = 's';
             moveRightTo = 's';
@@ -645,10 +836,10 @@ void loop() {
           case 'l':
             #ifdef DEBUG
               Serial.print("got command LIGHT: ");
-              Serial.println((char)ch);
+              Serial.println(ch, DEC);
             #endif
 
-            brightness = (ch == '1') ? brightnessInit : 0;
+            brightness = ch;
             analogWrite(LED_MOSFET, brightness);
             
             commandStage = 0;
@@ -662,28 +853,35 @@ void loop() {
               case 'l': // команда "col" = command open left
                 moveLeftTo  = 'o';
                 moveRightTo = 's';
+                timeout = timeoutInitLeft * TIMEOUT_SCALER;
                 break;
               
               case 'r': // команда "cor" = command open right
                 moveLeftTo  = 's';
                 moveRightTo = 'o';
+                timeout = timeoutInitRight * TIMEOUT_SCALER;
                 break;
     
-              case 'a': // команда "coa" = command open all (по одной створке, с учётом first)
+              case 'a': // команда "coa" = command open auto
+                startMoveAuto('o');
+                break;
+    
+              case 'b': // команда "cob" = command open both (по одной створке, с учётом first)
                 if (first == 'l') { // начнём открывать с левой
                   moveLeftTo  = 'o';
                   moveRightTo = 'g';
+                  timeout = timeoutInitLeft * TIMEOUT_SCALER;
                 }
                 else {
                   moveLeftTo  = 'g';
                   moveRightTo = 'o';
+                  timeout = timeoutInitRight * TIMEOUT_SCALER;
                 }
                 break;
             }
 
             speedLeft  = 0;
             speedRight = 0;
-            timeout = timeoutInit * TIMEOUT_SCALER;
             
             #ifdef DEBUG
               Serial.println("got command OPEN");
@@ -700,28 +898,35 @@ void loop() {
               case 'l': // команда "ccl" = command close left
                 moveLeftTo  = 'c';
                 moveRightTo = 's';
+                timeout = timeoutInitLeft * TIMEOUT_SCALER;
                 break;
               
               case 'r': // команда "ccr" = command close right
                 moveLeftTo  = 's';
                 moveRightTo = 'c';
+                timeout = timeoutInitRight * TIMEOUT_SCALER;
                 break;
     
-              case 'a': // команда "cca" = command close all (по одной створке, с учётом first)
+              case 'a': // команда "cca" = command close auto
+                startMoveAuto('c');
+                break;
+    
+              case 'b': // команда "ccb" = command close both (по одной створке, с учётом first)
                 if (first == 'l') { // начнём закрывать с правой
                   moveLeftTo  = 'g';
                   moveRightTo = 'c';
+                  timeout = timeoutInitLeft * TIMEOUT_SCALER;
                 }
                 else {
                   moveLeftTo  = 'c';
                   moveRightTo = 'g';
+                  timeout = timeoutInitRight * TIMEOUT_SCALER;
                 }
                 break;
             }
 
             speedLeft  = 0;
             speedRight = 0;
-            timeout = timeoutInit * TIMEOUT_SCALER;
             
             #ifdef DEBUG
               Serial.println("got command CLOSE");
@@ -731,8 +936,8 @@ void loop() {
             break;
             
           case 's':
-            first = ch;
-            eeprom_write_byte(EEPROM_FIRST, first);
+            part = ch;
+            eeprom_write_byte(EEPROM_PART, first);
             commandStage = 3;
             break;
             
@@ -743,44 +948,94 @@ void loop() {
 
       case 3:
         if (command == 's') {
-          timeoutInit = ch;
-          eeprom_write_byte(EEPROM_TIMEOUT, timeoutInit);
+          first = ch;
+          eeprom_write_byte(EEPROM_FIRST, first);
           commandStage = 4;
         }
         break;
 
-
       case 4:
         if (command == 's') {
-          brightnessInit = ch;
-          eeprom_write_byte(EEPROM_BRIGHTNESS, brightnessInit);
+          timeoutInitLeft = ch;
+          eeprom_write_byte(EEPROM_TIMEOUT_LEFT, timeoutInitLeft);
           commandStage = 5;
         }
         break;
 
       case 5:
         if (command == 's') {
-          threshold = ch;
-          eeprom_write_byte(EEPROM_THRESHOLD, threshold);
+          timeoutInitRight = ch;
+          eeprom_write_byte(EEPROM_TIMEOUT_RIGHT, timeoutInitRight);
           commandStage = 6;
         }
         break;
 
       case 6:
         if (command == 's') {
-          maxSpeed = ch;
-          eeprom_write_byte(EEPROM_MAXSPEED, maxSpeed);
+          thresholdLeft = ch;
+          eeprom_write_byte(EEPROM_THRESHOLD_LEFT, thresholdLeft);
           commandStage = 7;
         }
         break;
 
       case 7:
         if (command == 's') {
-          velocity = ch;
-          eeprom_write_byte(EEPROM_VELOCITY, velocity);
-          commandStage = 0;
+          thresholdRight = ch;
+          eeprom_write_byte(EEPROM_THRESHOLD_RIGHT, thresholdRight);
+          commandStage = 8;
         }
         break;
+
+      case 8:
+        if (command == 's') {
+          maxSpeedLeft = ch;
+          eeprom_write_byte(EEPROM_MAXSPEED_LEFT, maxSpeedLeft);
+          commandStage = 9;
+        }
+        break;
+
+      case 9:
+        if (command == 's') {
+          maxSpeedRight = ch;
+          eeprom_write_byte(EEPROM_MAXSPEED_RIGHT, maxSpeedRight);
+          commandStage = 10;
+        }
+        break;
+
+      case 10:
+        if (command == 's') {
+          velocityLeft = ch;
+          eeprom_write_byte(EEPROM_VELOCITY_LEFT, velocityLeft);
+          commandStage = 11;
+        }
+        break;
+
+      case 11:
+        if (command == 's') {
+          velocityRight = ch;
+          eeprom_write_byte(EEPROM_VELOCITY_RIGHT, velocityRight);
+          commandStage = 12;
+        }
+        break;
+
+      case 12:
+        if (command == 's') {
+          reverseLeft = ch;
+          eeprom_write_byte(EEPROM_REVERSE_LEFT, reverseLeft);
+          commandStage = 13;
+        }
+        break;
+
+      case 13:
+        if (command == 's') {
+          reverseRight = ch;
+          eeprom_write_byte(EEPROM_REVERSE_RIGHT, reverseRight);
+          commandStage = 0;
+
+          reverseInit();
+        }
+        break;
+
     } // switch stage
   } // if serial.available
   
