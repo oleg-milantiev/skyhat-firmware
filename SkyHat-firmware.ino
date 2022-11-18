@@ -24,7 +24,7 @@
  * - 'o'(3 байта): Open, открыть. Параметр 'l' (левую крышку), 'r' (правую крышку), 'b' (обе крышки), 'a' (авто)
  * - 'c'(3 байта): Close, закрыть. Параметр 'l' (левую крышку), 'r' (правую крышку), 'b' (обе крышки), 'a' (авто)
  * - 'a'(2 байта): Abort. Отмена движения
- * - 'g'(2 байта): get, получить пакета текущих данных. Параметр игнорируется (но должен быть задан!)
+ * - 'g'(2 байта): get, получить пакета текущих данных
  *        - byte start = 0xEE
  *        - byte, current: Текущий ток в ADU датчика
  *        - byte, timeout: Текущий таймаут в секундах (через сколько секунд мотор вырубится с ошибкой)
@@ -53,7 +53,7 @@
  *        - byte, reverseRight: реверс правого мотора (1) или его нормальная работа (0)
  *        - byte stop = 0x00
  *         * Для отладки та же информация представлена в виде текстовой строки
- * - 's'(2+12=14 байт): set EEPROM, установить параметры в EEPROM (part, first, timeoutLeft, timeoutRight, thresholdLeft, thresholdRight, maxSpeedLeft, maxSpeedRight, velocityLeft, velocityRight, reverseLeft, reverseRight)
+ * - 's'(12 байт): set EEPROM, установить параметры в EEPROM (part, first, timeoutLeft, timeoutRight, thresholdLeft, thresholdRight, maxSpeedLeft, maxSpeedRight, velocityLeft, velocityRight, reverseLeft, reverseRight)
  * 
  * до v.1.8-
  * - 'l'(3 байта): Light, свет. Параметр: '1' / '0' - включить / выключить
@@ -100,7 +100,7 @@ byte statusRight = 'u';
 
 //////////////////////////////// НАСТРОЙКИ
 
-#define DEBUG
+//#define DEBUG
 //#define INIT_EEPROM
 
 // ноги ардуины
@@ -524,7 +524,8 @@ void loop() {
   }
   #endif
 
-  // концевики
+  
+  ////////// КОНЦЕВИКИ !!!!!!!!!!!!!!!!
   #ifdef ENDSTOP_LEFT_OPEN
     current = 0;
   
@@ -577,6 +578,7 @@ void loop() {
     }
   #endif
 
+  
   ////////////////////// ДВИЖЕНИЕ ЛЕВОГО МОТОРА ////////////////
   if ( (moveLeftTo == 'o') || (moveLeftTo == 'c') ) {
     if (speedLeft < maxSpeedLeft) {
@@ -806,21 +808,33 @@ void loop() {
             break;
 
           case 'a':
-            digitalWrite(motor_left_open, 0);
-            digitalWrite(motor_left_close, 0);
-            digitalWrite(motor_right_open, 0);
-            digitalWrite(motor_right_close, 0);
-            
-            moveLeftTo  = 's';
-            moveRightTo = 's';
-            speedLeft   = 0;
-            speedRight  = 0;
-            statusLeft  = 'u';
-            statusRight = 'u';
-            
             #ifdef DEBUG
               Serial.println("got command ABORT");
             #endif
+            
+            if ( (moveLeftTo != 's') || (speedLeft > 0) ) {
+              #ifdef DEBUG
+                Serial.println("ABORT left motor movement");
+              #endif
+              
+              digitalWrite(motor_left_open, 0);
+              digitalWrite(motor_left_close, 0);
+              statusLeft  = 'u';
+              moveLeftTo  = 's';
+              speedLeft   = 0;
+            }
+          
+            if ( (moveRightTo != 's') || (speedRight > 0) ) {
+              #ifdef DEBUG
+                Serial.println("ABORT right motor movement");
+              #endif
+              
+              digitalWrite(motor_right_open, 0);
+              digitalWrite(motor_right_close, 0);
+              statusRight = 'u';
+              moveRightTo = 's';
+              speedRight  = 0;
+            }
             
             commandStage = 0;
             break;
@@ -937,7 +951,7 @@ void loop() {
             
           case 's':
             part = ch;
-            eeprom_write_byte(EEPROM_PART, first);
+            eeprom_write_byte(EEPROM_PART, part);
             commandStage = 3;
             break;
             
