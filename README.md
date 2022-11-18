@@ -6,7 +6,7 @@ Manual (russian): https://docs.google.com/document/d/1J516MSoSA363T3rxM_ot0cN3td
 
 Windows (dotnet) standalone app source: https://github.com/oleg-milantiev/skyhat-windows
 
-Windows ASCOM driver source: https://github.com/oleg-milantiev/skyhat-ASCOM
+Windows ASCOM (Dome) driver source: https://github.com/oleg-milantiev/skyhat-ASCOM
 
 Libraries:
 * https://github.com/adafruit/Adafruit_INA219.git for INA219 current sensor
