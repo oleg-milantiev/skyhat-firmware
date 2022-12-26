@@ -415,15 +415,29 @@ void startMoveAuto(byte dir)
       break;
 
     case 'b':
-      if (first == 'l') { // начнём двигать с левой
-        moveLeftTo  = dir;
-        moveRightTo = 'g';
-        timeout = timeoutInitLeft * TIMEOUT_SCALER;
+      if (dir == 'o') {
+        if (first == 'l') { // начнём открывать с левой
+          moveLeftTo  = dir;
+          moveRightTo = 'g';
+          timeout = timeoutInitLeft * TIMEOUT_SCALER;
+        }
+        else {
+          moveLeftTo  = 'g';
+          moveRightTo = dir;
+          timeout = timeoutInitRight * TIMEOUT_SCALER;
+        }
       }
       else {
-        moveLeftTo  = 'g';
-        moveRightTo = dir;
-        timeout = timeoutInitRight * TIMEOUT_SCALER;
+        if (first == 'r') { // начнём закрывать с правой
+          moveLeftTo  = dir;
+          moveRightTo = 'g';
+          timeout = timeoutInitLeft * TIMEOUT_SCALER;
+        }
+        else {
+          moveLeftTo  = 'g';
+          moveRightTo = dir;
+          timeout = timeoutInitRight * TIMEOUT_SCALER;
+        }
       }
       break;
   }
