@@ -457,7 +457,7 @@ void loop() {
       sum += ina219.getCurrent_mA();
     }
   
-    current = - (sum / 50);
+    current = - (sum / 100);
     
     #ifdef DEBUG
       if ( (moveLeftTo != 's') || (moveRightTo != 's') ) {
